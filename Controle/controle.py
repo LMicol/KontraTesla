@@ -7,6 +7,8 @@ Lê os valores da serial (joystick/volante) e publica via MQTT
 import serial, sys, time
 import paho.mqtt.client as mqtt
 
+output_history = ''
+
 #
 def map(value, in_min, in_max, out_min, out_max):
     return round(((value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min))
@@ -69,9 +71,11 @@ if __name__ == "__main__":
 
 
             # envia para o broker mqtt
-            pub.publish('/c0/eng', output)
-            print(output)
-
+            if output != output_history:
+                pub.publish('/c0/eng', output)
+                print(output)
+                output_history = output
+                
         if stop:
             break
         #time.sleep(0.1)
