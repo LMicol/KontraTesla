@@ -1,6 +1,6 @@
 """
 
-Lê os valores da serial (joystick/volante) e publica via MQTT
+Le os valores da serial (joystick/volante) e publica via MQTT
 
 """
 
@@ -14,9 +14,9 @@ def map(value, in_min, in_max, out_min, out_max):
     return round(((value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min))
 
 #
-DEVICE='/dev/ttyUSB0'
+DEVICE='/dev/ttyUSB1'
 SPEED=9600
-BROKER="10.1.1.110"
+BROKER='10.1.1.110'
 
 #
 def open_serial(dev, speed, show_info=False):
@@ -73,7 +73,7 @@ if __name__ == "__main__":
                 pub.publish('/c0/eng', output)
                 print(output)
                 output_history = output
-                
+
         if stop:
             break
 

@@ -69,58 +69,80 @@ void loop() {
     y = RAD_TO_DEG * (atan2(-xAng, -zAng)+PI);
     z = RAD_TO_DEG * (atan2(-yAng, -xAng)+PI);
 
-    /*
-    Serial.print("X=");
-    Serial.println(x);
-
-    Serial.print("Y=");
-    Serial.println(y);
-
-    Serial.print("Z=");
-    Serial.println(z);
-    */
-
     // [0,360] -> [-180,180]
-    if (y > 180 && y <= 360) {
+    if (y > 180) {
       y = -360 + y;
     }
-    if (x > 180 && x <= 360) {
+    if (x > 180) {
       x = -360 + x;
     }
-    if (z > 180 && z <= 360) {
+    if (z > 180) {
       z = -360 + z;
     }
 
-    // TODO: verificar qual dos intervalos segue qual linha
+/*
+    if (y >= 45 && y <= 135) {
+      Serial.print(z);
+      Serial.print(",");
+      Serial.println(y);
+    } else {
+      Serial.print(x);
+      Serial.print(",");
+      Serial.println(y);
+    }
+*/
+
+    // caso algum dos ângulos de controle esteja fora do intervalo definido para mapeamento, os valores são zerados
+    if (y < 0 || y > 135) {
+      // ignora a saída e para o carro
+      x = 0;
+      y = 90;
+      z = 0;
+    } else if (y >= 45 || y <= 135) {
+      if (z < -60 || z > 60) {
+        x = 0;
+        y = 90;
+        z = 0;
+      }
+    } else { // (y >= 0 && y < 45)
+      if (x < -60 || x > 60) {
+        x = 0;
+        y = 90;
+        z = 0;
+      }
+    }
+/*
+    if (y >= 45 && y <= 135) {
+      Serial.print(z);
+      Serial.print(",");
+      Serial.println(y);
+    } else {
+      Serial.print(x);
+      Serial.print(",");
+      Serial.println(y);
+    }
+*/
+
+    // x: [-60, 60] -> [-128, 127]; y: [0, 180] -> [127, -128]
     int xc;
-    if (y <= 45 || y >= -45) {
+    if (y >= 45 && y <= 135) {
       xc = map(z, -60, 60, -128, 127);
     } else {
       xc = map(x, -60, 60, -128, 127);
     }
-    int yc = map(y, -90, 90, -128, 127);
+    int yc = map(y, 0, 180, 127, -128);
 
-    // caso algum dos ângulos de controle esteja fora do intervalo definido para mapeamento, os valores são zerados
-    if (y < 180) {
-      // ignora a saída e para o carro
+    if(xc < 4 && xc > -4){
       xc = 0;
+    }
+    if(yc < 4 && yc > -4){
       yc = 0;
-    } else if (y <= 45 || y >= -45) {
-      if (z < -60 || z > 60) {
-        xc = 0;
-        yc = 0;
-      }
-    } else {
-      if (x < -60 || x > 60) {
-        xc = 0;
-        yc = 0;
-      }
     }
 
     Serial.print(xc);
     Serial.print(",");
     Serial.println(yc);
-  } 
+  }
   // Usa o joystick como dispositivo controlador
   else {
     outputValueX = analogRead(analogInPinX);
