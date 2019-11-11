@@ -66,9 +66,7 @@ if __name__ == "__main__":
                 left = y + map(x, 0, 128, 0, y)
                 right = y
 
-            # output = 'L=' + str(left) + ',R=' + str(right)
             output = str(left) + ',' + str(right)
-
 
             # envia para o broker mqtt
             if output != output_history:
@@ -78,7 +76,6 @@ if __name__ == "__main__":
                 
         if stop:
             break
-        #time.sleep(0.1)
 
     #except:
     print("Except:")

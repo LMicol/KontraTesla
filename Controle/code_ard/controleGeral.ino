@@ -1,16 +1,14 @@
-//Written by Ahmet Burkay KIRNIK
-//TR_CapaFenLisesi
-//Measure Angle with a MPU-6050(GY-521)
+// Measure Angle with a MPU-6050(GY-521) Written by Ahmet Burkay KIRNIK
 
 /* Volante */
 
 #include<Wire.h>
 
 const int MPU_addr=0x68;
-int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
+int16_t AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;
 
-int minVal=265;
-int maxVal=402;
+int minVal = 265;
+int maxVal = 402;
 
 double x;
 double y;
@@ -18,30 +16,24 @@ double z;
 
 /**/
 
-/* Joystick */
+bool controller = false;          // true = volante; false = joystick
 
-// Variaveis do Serial
-String inputString = "";      // a String to hold incoming data
-bool stringComplete = false;  // whether the string is complete
-bool controller = false; // true = volante; false = joystick
+/* Joystick */
 
 // Variaveis do Joystick
 int outputValueX = 0;
 int outputValueY = 0;
 int buttonState = 0;
 
-const int analogInPinX = 1; // A1
-const int analogInPinY = 2; // A2
-const int digitalJoystick = 2; // D2
+const int analogInPinX = 1;       // A1
+const int analogInPinY = 2;       // A2
+const int digitalJoystick = 2;    // D2
 
 /**/
 
-void setup()
-{
+void setup() {
   /* Joystick */
   pinMode(buttonState, INPUT);
-  //Serial.begin(115200);
-  inputString.reserve(200);
   /**/
   /* Volante */
   Wire.begin();
@@ -57,14 +49,9 @@ void loop() {
   buttonState = digitalRead(digitalJoystick);
   if (!buttonState) {
     controller = !controller;
-    while (!digitalRead(digitalJoystick)) {}
+    while (!digitalRead(digitalJoystick)) {} // enquanto não soltar o botão, trava a leitura, pois a troca não foi efetuada
     delay(50);
-  }/*
-  if (controller) {
-    Serial.println("VOLANTE");
-  } else {
-    Serial.println("JOYSTICK");
-  }*/
+  }
   // Usa o volante como dispositivo controlador
   if (controller) {
     Wire.beginTransmission(MPU_addr);
@@ -77,11 +64,23 @@ void loop() {
     int xAng = map(AcX,minVal,maxVal,-90,90);
     int yAng = map(AcY,minVal,maxVal,-90,90);
     int zAng = map(AcZ,minVal,maxVal,-90,90);
-  
-    x= RAD_TO_DEG * (atan2(-yAng, -zAng)+PI);
-    y= RAD_TO_DEG * (atan2(-xAng, -zAng)+PI);
-    z= RAD_TO_DEG * (atan2(-yAng, -xAng)+PI);
 
+    x = RAD_TO_DEG * (atan2(-yAng, -zAng)+PI);
+    y = RAD_TO_DEG * (atan2(-xAng, -zAng)+PI);
+    z = RAD_TO_DEG * (atan2(-yAng, -xAng)+PI);
+
+    /*
+    Serial.print("X=");
+    Serial.println(x);
+
+    Serial.print("Y=");
+    Serial.println(y);
+
+    Serial.print("Z=");
+    Serial.println(z);
+    */
+
+    // [0,360] -> [-180,180]
     if (y > 180 && y <= 360) {
       y = -360 + y;
     }
@@ -92,75 +91,54 @@ void loop() {
       z = -360 + z;
     }
 
-/*
-    Serial.print("X=");
-    Serial.println(x);
-  
-    Serial.print("Y=");
-    Serial.println(y);
-  
-    Serial.print("Z=");
-    Serial.println(z);
-    Serial.println("-----------------------------------------");
-    delay(100);
-*/
-    // testa se os angulos estão fora do intervalo de controle, caso positivo, seta os motores para 0
-    /*
-    if (y < 0) {
+    // TODO: verificar qual dos intervalos segue qual linha
+    int xc;
+    if (y <= 45 || y >= -45) {
+      xc = map(z, -60, 60, -128, 127);
+    } else {
+      xc = map(x, -60, 60, -128, 127);
+    }
+    int yc = map(y, -90, 90, -128, 127);
+
+    // caso algum dos ângulos de controle esteja fora do intervalo definido para mapeamento, os valores são zerados
+    if (y < 180) {
       // ignora a saída e para o carro
-      y = 0;
-    } else if (y >= 45 && y <= 135) {
-      if (z < -60 && z > 60) {
-        // ignora a saída e para o carro
-        y = 0;
+      xc = 0;
+      yc = 0;
+    } else if (y <= 45 || y >= -45) {
+      if (z < -60 || z > 60) {
+        xc = 0;
+        yc = 0;
       }
     } else {
-      if (x < -60 && x > 60) {
-        // ignora a saída e para o carro
-        y = 0;
+      if (x < -60 || x > 60) {
+        xc = 0;
+        yc = 0;
       }
-    }*/
-    int xv = map(x, -60, 60, -128, 127);
-    int yv = map(y, 0, 90, -128, 127);
-    int zv = map(z, -60, 60, -128, 127);
+    }
 
-    Serial.print("X=");
-    Serial.println(x);
-  
-    Serial.print("Y=");
-    Serial.println(y);
-  
-    Serial.print("Z=");
-    Serial.println(z);
-    Serial.println("-----------------------------------------");
-    delay(100);
+    Serial.print(xc);
+    Serial.print(",");
+    Serial.println(yc);
   } 
   // Usa o joystick como dispositivo controlador
   else {
     outputValueX = analogRead(analogInPinX);
     outputValueY = analogRead(analogInPinY);
 
-    //outputValueX += 6;
-    //outputValueY += 6;
-    
-//    int xj = map(outputValueX, 0, 1023, -128, 127);
-//    int yj = map(outputValueY, 0, 1023, -128, 127);
-//    Serial.print("X = ");
+    int xj = (outputValueX - 512) / 4;
+    int yj = (outputValueY - 512) / 4;
 
-      int xj = (outputValueX - 512) / 4;
-      int yj = (outputValueY - 512) / 4;
-
-      if(xj < 4 && xj > -4){
-        xj = 0;
-      }
-
-      if(yj < 4 && yj > -4){
-        yj = 0;
-      }
+    // eliminar o erro existente nos valores mostrado pelo joystick
+    if(xj < 4 && xj > -4){
+      xj = 0;
+    }
+    if(yj < 4 && yj > -4){
+      yj = 0;
+    }
 
     Serial.print(xj);
     Serial.print(",");
-//    Serial.print("Y = ");
     Serial.println(yj);
   }
 }

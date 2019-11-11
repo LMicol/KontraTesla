@@ -2,7 +2,7 @@
 
 Testa os valores de saída para os motores, dado o posicionamento do volante/joystick
 
-Antes de passar os valores obtidos para a serial, esses serão mapeados para o intervalo [-128,128]
+Antes de passar os valores obtidos para a serial, esses serão mapeados para o intervalo [-128,127]
  
 """
 
