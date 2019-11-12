@@ -242,13 +242,13 @@ void ir()
 }
 
 // Imprime na serial os dados dos sensores infrared
-// Saída: i,esquerdo,direito,traseiro
+// Saída: idIr,esquerdo,direito,traseiro
 void ir_print()
 {
-    // Chama a função que lê os sensores infrared
+    // Lê os sensores
     ir();
 
-    // Imprime na serial os dados
+    // Imprime na serial
     Serial.print(idIr);
     Serial.print(delimiter);
     Serial.print(ir_esqState);
@@ -259,7 +259,7 @@ void ir_print()
 }
 
 // Coleta e imprime na serial a temperatura, em graus celsius, do sensor de temperatura
-// Saída: t,temperatura
+// Saída: idTemperature,temperatura
 void temperatura()
 {
     // Lê o sensor
@@ -279,7 +279,7 @@ void ultra()
 }
 
 // Imprime na serial a distancia do sensor ultrasonico
-// Saída: u,distancia
+// Saída: idUltrasonic,distancia
 void ultra_print()
 {
     // Lê o sensor
@@ -292,7 +292,7 @@ void ultra_print()
 }
 
 // Retorna os dados do acelerometro e do giroscopio no formato:
-// Saída: a,x_ace,y_ace,z_ace,x_giro,y_giro,z_giro
+// Saída: idMpu,x_ace,y_ace,z_ace,x_giro,y_giro,z_giro
 // Obs: não é utilizada a temperatura desse sensor
 void mpu6050()
 {
@@ -323,16 +323,15 @@ void mpu6050()
     Serial.print(delimiter);
     Serial.println(giroscopioZ);
 
-    // Descomentar para imprimir a temperatura do sensor embutido na mpu6050
+    // Imprime a temperatura do sensor embutido na mpu6050
     //Serial.print(idTemperature);
     //Serial.print(delimiter);
     //Serial.println(temperatureMpu/340.00+36.53);
 }
 
-// Para os motores
+// Para os motores do lado ESQUERDO e DIREITO, respectivamente
 void stopMotors()
 {
-    // Para os motores do lado ESQUERDO e DIREITO, respectivamente
     motorEsq.stop();
     motorDir.stop();
 }
@@ -345,24 +344,22 @@ void loop()
     // Se colisao for detectada, para os motores e imprime na serial os dados dos sensores.
     if((ir_esqState == 0 || ir_dirState == 0 || ir_traState == 0) && (DESABILITA_PARADA_IR_COLISAO == 0))
     {
-        // Para os motores
         stopMotors();
         ir_print();
     }
 
-    // Obtem os dados do sensor ultrasônico SEM imprimir na serial
+    // Obtem distancia com o ultrasônico SEM imprimir na serial
     ultra();
 
-    // Se obstaculo estiver próximo demais, para os motores e imprime na serial a.
+    // Se perto demais, para os motores e imprime na serial.
     if((distance < DISTANCIA_PARADA_ULTRASONICO_COLISAO) && (DESABILITA_PARADA_ULTRASONICO_COLISAO == 0))
     {
-        // Para os motores
         stopMotors();
         ultra_print();
     }
 
     // Imprime na serial os dados do acelerometro e do giroscopio, freneticamente :)
-    //mpu6050();
+    mpu6050();
 
     unsigned long currentMillis = millis();
 
@@ -377,7 +374,7 @@ void loop()
     // Trata os comandos recebidos
     if(newInput)
     {
-        // Quebra a entrada usando o delimiter
+        // Quebra a entrada usando delimiter
         int tokenIndex = 0;
         tokens[tokenIndex] = strtok(inputSentence,delimiter);
 
@@ -394,14 +391,14 @@ void loop()
         // Trata os motores
         if(*tokens[id] == idMotors)
         {
-            // Tarefa: transformar em vetor de motores, pra nao repetir codigo e preparar para a situação de quatro motores independetes utilizando duas pontes h.
+            // Tarefa: nao repetir codigo, preparar para motores independetes utilizando mais pontes h.
             stopMotors();
 
-            // Se parameto < 128 motores do lado esquerdo rodam no sentido antihorario
-            // Senão, rodam no sentido horario
+            // Motores esquerdos rodam no sentido antihorario
+            // Senão, no sentido horario
             if(val1 <= VEL_MAX_HORA)
             {
-                // Mapeia o parametro para 0~255
+                // Mapeamento para [MAP_MIN,MAP_MAX]
                 int val11map = map(val1,VEL_MIN_HORA,VEL_MAX_HORA,MAP_MIN,MAP_MAX);
 
                 // Configura a velocidade
@@ -412,7 +409,7 @@ void loop()
             }
             else
             {
-                // Mapeia o parametro para 0~255
+                // Mapeamento para [MAP_MIN,MAP_MAX]
                 int val12map = map(val1,VEL_MIN_ANTI,VEL_MAX_ANTI,MAP_MIN,MAP_MAX);
 
                 // Configura a velocidade
@@ -422,7 +419,7 @@ void loop()
                 motorEsq.forward();
             }
 
-            // Igual ao if-else anterior mas, para os motores do lado direito
+            // Idem mas, para os motores do lado direito
             if(val2 <= VEL_MAX_HORA)
             {
                 int val21map = map(val2,VEL_MIN_HORA,VEL_MAX_HORA,MAP_MIN,MAP_MAX);
@@ -468,7 +465,7 @@ void loop()
             temperatura();
         }
 
-        // limpa string
+        // Limpa string
         inputSentence[0] = stringEnding;
         newInput = false;
         inputIndex = 0;
@@ -477,13 +474,13 @@ void loop()
 
 void serialEvent()
 {
-    // coleta bytes de entrada enquanto estiver chegando
+    // Coleta bytes de entrada enquanto estiver chegando
     while(Serial.available())
     {
-        // obtem proximo byte:
+        // Obtem proximo byte:
         char inChar = (char)Serial.read();
 
-        // se caracter for nova linha seta flag, entao loop principal pode tratar a instrução recebida
+        // Se for nova linha, seta flag. Então loop principal trata o comando recebido
         if(inChar == lineEnding)
         {
             newInput = true;
