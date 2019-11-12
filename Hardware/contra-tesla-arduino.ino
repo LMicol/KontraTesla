@@ -98,6 +98,19 @@
 #define IR_DIR 12
 #define IR_TRA 9
 
+// Desabilita a parada do carro quando sensores IR detectarem colisão
+// 0 ativada
+// 1 desativada
+// Ativada por default
+const int DESABILITA_PARADA_IR_COLISAO = 0;
+
+// Desabilita a parada do carro quando distancia do ultrasonico for menor que
+// Desativada por default
+// 0 ativada
+// 1 desativada
+const int DESABILITA_PARADA_ULTRASONICO_COLISAO = 1;
+const int DISTANCIA_PARADA_ULTRASONICO_COLISAO  = 4;
+
 // Porta sensor de temperatura
 #define TEMP 6
 
@@ -118,47 +131,66 @@
 #define IN4 8
 
 // Instância os dois pares de motores
-L298N motorESQ(ENA,IN1,IN2);
-L298N motorDIR(ENB,IN3,IN4);
+L298N motorEsq(ENA,IN1,IN2);
+L298N motorDir(ENB,IN3,IN4);
+
+#define VEL_MIN_HORA 0
+#define VEL_MAX_HORA 127
+#define VEL_MIN_ANTI 128
+#define VEL_MAX_ANTI 255
+#define MAP_MIN 0
+#define MAP_MAX 255
 
 // Portas para os servos
 // Utilizadas portas analogicas como digitais
-#define servo_HOR A0
-#define servo_VER A1
+#define SERVO_HOR A0
+#define SERVO_VER A1
 
 // Instância servos horizontal e vertical, respectivamente
-Servo servoHOR;
-Servo servoVER;
+Servo servoHor;
+Servo servoVer;
 
-// Variáveis para a MPU
-const int MPU=0x68;
-int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
+// Variáveis para a MPU6050
+// Endereco I2C do MPU6050
+const int mpui2cAddress=0x68;
+int16_t acelerometroX,acelerometroY,acelerometroZ;
+int16_t giroscopioX,giroscopioY,giroscopioZ;
+int16_t temperatureMpu;
 
 // Para controle da serial
 #define SPEED 115200
 #define MAX_LEN 80
 char inputSentence[MAX_LEN + 1];
 const char lineEnding = '\n';
-int inputIndex;
+const char stringEnding = '\0';
+int inputIndex = 0;
 bool newInput = false;
 
-// Para tratar os dados separados por virgula recebidos na serial
+// Para tratar os dados separados por virgula na serial
 const byte MAX_TOKENS = 3;
 const char* delimiter = ",";
 char* tokens[MAX_TOKENS + 1];
 enum indexName {id,value1,value2};
 
+const char idTemperature = 't';
+const char idIr = 'i';
+const char idUltrasonic = 'u';
+const char idMotors = 'm';
+const char idServo = 'v';
+const char idMpu = 'a';
+const char isStop = 's';
+
 // Variáveis para os dados dos sensores infrared
-int IR_ESQState = 1;
-int IR_DIRState = 1;
-int IR_TRAState = 1;
+int ir_esqState = 1;
+int ir_dirState = 1;
+int ir_traState = 1;
 
 // Para o sensor ultrasonico
 Ultrasonic ultrasonic(ULTRA_TRIG,ULTRA_ECHO);
 int distance;
 
 // Variável para a temperatura do sensor de temperatura
-float tempo = 0;
+float temperatureSensor = 0;
 
 // Intervalo para imprimir na serial a temperatura
 long previousMillis = 0;
@@ -168,11 +200,11 @@ void setup()
 {
     stopMotors();
 
-    pinMode(servo_HOR,OUTPUT);
-    pinMode(servo_VER,OUTPUT);
+    pinMode(SERVO_HOR,OUTPUT);
+    pinMode(SERVO_VER,OUTPUT);
 
-    servoHOR.attach(servo_HOR);
-    servoVER.attach(servo_VER);
+    servoHor.attach(SERVO_HOR);
+    servoVer.attach(SERVO_VER);
 
     pinMode(IR_ESQ,INPUT);
     pinMode(IR_DIR,INPUT);
@@ -182,7 +214,7 @@ void setup()
     pinMode(ULTRA_ECHO,INPUT);
 
     Wire.begin();
-    Wire.beginTransmission(MPU);
+    Wire.beginTransmission(mpui2cAddress);
     Wire.write(0x6B);
     Wire.write(0);
     Wire.endTransmission(true);
@@ -194,18 +226,18 @@ void setup()
 void ir()
 {
     // Lê os sensores
-    IR_ESQState = digitalRead(IR_ESQ);
-    IR_DIRState = digitalRead(IR_DIR);
-    IR_TRAState = digitalRead(IR_TRA);
+    ir_esqState = digitalRead(IR_ESQ);
+    ir_dirState = digitalRead(IR_DIR);
+    ir_traState = digitalRead(IR_TRA);
 
     // Inverte a saída do sensor traseiro, seu funcionamento é invertido em relação aos demais
-    if(IR_TRAState)
+    if(ir_traState == 1)
     {
-        IR_TRAState = 0;
+        ir_traState = 0;
     }
-    else
+    else if(ir_traState == 0)
     {
-        IR_TRAState = 1;
+        ir_traState = 1;
     }
 }
 
@@ -217,9 +249,13 @@ void ir_print()
     ir();
 
     // Imprime na serial os dados
-    Serial.print("i,"); Serial.print(IR_ESQState);
-    Serial.print(",");  Serial.print(IR_DIRState);
-    Serial.print(",");  Serial.println(IR_TRAState);
+    Serial.print(idIr);
+    Serial.print(delimiter);
+    Serial.print(ir_esqState);
+    Serial.print(delimiter);
+    Serial.print(ir_dirState);
+    Serial.print(delimiter);
+    Serial.println(ir_traState);
 }
 
 // Coleta e imprime na serial a temperatura, em graus celsius, do sensor de temperatura
@@ -227,21 +263,32 @@ void ir_print()
 void temperatura()
 {
     // Lê o sensor
-    tempo = digitalRead(TEMP);
+    temperatureSensor = digitalRead(TEMP);
 
     // Imprime na serial
-    Serial.print("t,"); Serial.println(tempo);
+    Serial.print(idTemperature);
+    Serial.print(delimiter);
+    Serial.println(temperatureSensor);
 }
 
-// Coleta e imprime na serial a distancia do sensor ultrasonico
-// Saída: u,distancia
+// Coleta a distancia do sensor ultrasonico
 void ultra()
 {
     // Lê o sensor
     distance = ultrasonic.read();
+}
+
+// Imprime na serial a distancia do sensor ultrasonico
+// Saída: u,distancia
+void ultra_print()
+{
+    // Lê o sensor
+    ultra();
 
     // Imprime na serial
-    Serial.print("u,"); Serial.println(distance);
+    Serial.print(idUltrasonic);
+    Serial.print(delimiter);
+    Serial.println(distance);
 }
 
 // Retorna os dados do acelerometro e do giroscopio no formato:
@@ -249,36 +296,45 @@ void ultra()
 // Obs: não é utilizada a temperatura desse sensor
 void mpu6050()
 {
-    Wire.beginTransmission(MPU);
+    Wire.beginTransmission(mpui2cAddress);
     Wire.write(0x3B);
     Wire.endTransmission(false);
-    Wire.requestFrom(MPU,14,true);
-    AcX=Wire.read()<<8|Wire.read();
-    AcY=Wire.read()<<8|Wire.read();
-    AcZ=Wire.read()<<8|Wire.read();
-    Tmp=Wire.read()<<8|Wire.read();
-    GyX=Wire.read()<<8|Wire.read();
-    GyY=Wire.read()<<8|Wire.read();
-    GyZ=Wire.read()<<8|Wire.read();
+    Wire.requestFrom(mpui2cAddress,14,true);
+    acelerometroX=Wire.read()<<8|Wire.read();
+    acelerometroY=Wire.read()<<8|Wire.read();
+    acelerometroZ=Wire.read()<<8|Wire.read();
+    temperatureMpu=Wire.read()<<8|Wire.read();
+    giroscopioX=Wire.read()<<8|Wire.read();
+    giroscopioY=Wire.read()<<8|Wire.read();
+    giroscopioZ=Wire.read()<<8|Wire.read();
 
     // Imprime na serial
-    Serial.print("a,");Serial.print(AcX);
-    Serial.print(","); Serial.print(AcY);
-    Serial.print(","); Serial.print(AcZ);
-    Serial.print(","); Serial.print(GyX);
-    Serial.print(","); Serial.print(GyY);
-    Serial.print(","); Serial.println(GyZ);
+    Serial.print(idMpu);
+    Serial.print(delimiter);
+    Serial.print(acelerometroX);
+    Serial.print(delimiter);
+    Serial.print(acelerometroY);
+    Serial.print(delimiter);
+    Serial.print(acelerometroZ);
+    Serial.print(delimiter);
+    Serial.print(giroscopioX);
+    Serial.print(delimiter);
+    Serial.print(giroscopioY);
+    Serial.print(delimiter);
+    Serial.println(giroscopioZ);
 
-    // Descomentar para imprimir a temperatura do sensor embutido na mpu
-    //Serial.print("t,"); Serial.println(Tmp/340.00+36.53);
+    // Descomentar para imprimir a temperatura do sensor embutido na mpu6050
+    //Serial.print(idTemperature);
+    //Serial.print(delimiter);
+    //Serial.println(temperatureMpu/340.00+36.53);
 }
 
 // Para os motores
 void stopMotors()
 {
     // Para os motores do lado ESQUERDO e DIREITO, respectivamente
-    motorESQ.stop();
-    motorDIR.stop();
+    motorEsq.stop();
+    motorDir.stop();
 }
 
 void loop()
@@ -286,16 +342,27 @@ void loop()
     // Obtem os dados dos sensores de colisao SEM imprimir na serial
     ir();
 
-    // Se colisao for detectada, para os motores e imprime na serial os dados dos sensores de colisão.
-    if(IR_ESQState == 0 || IR_DIRState == 0 || IR_TRAState == 0)
+    // Se colisao for detectada, para os motores e imprime na serial os dados dos sensores.
+    if((ir_esqState == 0 || ir_dirState == 0 || ir_traState == 0) && (DESABILITA_PARADA_IR_COLISAO == 0))
     {
         // Para os motores
         stopMotors();
         ir_print();
     }
 
+    // Obtem os dados do sensor ultrasônico SEM imprimir na serial
+    ultra();
+
+    // Se obstaculo estiver próximo demais, para os motores e imprime na serial a.
+    if((distance < DISTANCIA_PARADA_ULTRASONICO_COLISAO) && (DESABILITA_PARADA_ULTRASONICO_COLISAO == 0))
+    {
+        // Para os motores
+        stopMotors();
+        ultra_print();
+    }
+
     // Imprime na serial os dados do acelerometro e do giroscopio, freneticamente :)
-    mpu6050();
+    //mpu6050();
 
     unsigned long currentMillis = millis();
 
@@ -325,84 +392,84 @@ void loop()
         int val2 = atoi(tokens[value2]);
 
         // Trata os motores
-        if(*tokens[id] == 'm')
+        if(*tokens[id] == idMotors)
         {
             // Tarefa: transformar em vetor de motores, pra nao repetir codigo e preparar para a situação de quatro motores independetes utilizando duas pontes h.
-            //stopMotors();
+            stopMotors();
 
             // Se parameto < 128 motores do lado esquerdo rodam no sentido antihorario
             // Senão, rodam no sentido horario
-            if(val1 < 128)
+            if(val1 <= VEL_MAX_HORA)
             {
                 // Mapeia o parametro para 0~255
-                int val11map = map(val1,   0, 127, 0, 255);
+                int val11map = map(val1,VEL_MIN_HORA,VEL_MAX_HORA,MAP_MIN,MAP_MAX);
 
                 // Configura a velocidade
-                motorESQ.setSpeed(val11map);
+                motorEsq.setSpeed(val11map);
 
                 // Move para frente
-                motorESQ.backward();
+                motorEsq.backward();
             }
             else
             {
                 // Mapeia o parametro para 0~255
-                int val12map = map(val1, 128, 255, 0, 255);
+                int val12map = map(val1,VEL_MIN_ANTI,VEL_MAX_ANTI,MAP_MIN,MAP_MAX);
 
                 // Configura a velocidade
-                motorESQ.setSpeed(val12map);
+                motorEsq.setSpeed(val12map);
 
                 // Move para trás
-                motorESQ.forward();
+                motorEsq.forward();
             }
 
             // Igual ao if-else anterior mas, para os motores do lado direito
-            if(val2 < 128)
+            if(val2 <= VEL_MAX_HORA)
             {
-                int val21map = map(val2,   0, 127, 0, 255);
-                motorDIR.setSpeed(val21map);
-                motorDIR.backward();
+                int val21map = map(val2,VEL_MIN_HORA,VEL_MAX_HORA,MAP_MIN,MAP_MAX);
+                motorDir.setSpeed(val21map);
+                motorDir.backward();
             }
             else
             {
-                int val22map = map(val2, 128, 255, 0, 255);
-                motorDIR.setSpeed(val22map);
-                motorDIR.forward();
+                int val22map = map(val2,VEL_MIN_ANTI,VEL_MAX_ANTI,MAP_MIN,MAP_MAX);
+                motorDir.setSpeed(val22map);
+                motorDir.forward();
             }
         }
-        else if(*tokens[id] == 'v')
+        else if(*tokens[id] == idServo)
         {
             // Movimenta os servos para as posições informadas
-            servoHOR.write(val1);
-            servoVER.write(val2);
+            servoHor.write(val1);
+            servoVer.write(val2);
         }
-        else if(*tokens[id] == 'a')
+        else if(*tokens[id] == idMpu)
         {
             // Retorna os dados do acelerometro e giroscopio
             mpu6050();
         }
-        else if(*tokens[id] == 's')
+        else if(*tokens[id] == isStop)
         {
-            // Pára os motores
+            // Para os motores
             stopMotors();
         }
-        else if(*tokens[id] == 'i')
+        else if(*tokens[id] == idIr)
         {
             // Retorna os dados dos sensores de colisão
             ir_print();
         }
-        else if(*tokens[id] == 'u')
+        else if(*tokens[id] == idUltrasonic)
         {
             // Retorna a distância obtida do sensor ultrasônico
-            ultra();
+            ultra_print();
         }
-        else if(*tokens[id] == 't')
+        else if(*tokens[id] == idTemperature)
         {
             // Retorna a temperatura
             temperatura();
         }
 
         // limpa string
-        inputSentence[0] = '\0';
+        inputSentence[0] = stringEnding;
         newInput = false;
         inputIndex = 0;
     }
@@ -426,7 +493,7 @@ void serialEvent()
             if(inputIndex < MAX_LEN)
             {
                 inputSentence[inputIndex++] = inChar;
-                inputSentence[inputIndex] = '\0';
+                inputSentence[inputIndex] = stringEnding;
             }
         }
     }
