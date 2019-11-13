@@ -1,6 +1,6 @@
 """
 
-Le os valores da serial (joystick/volante) e publica via MQTT
+Le os valores da serial (joystick/volante), manipula e publica via MQTT
 
 """
 
@@ -9,7 +9,7 @@ import paho.mqtt.client as mqtt
 
 output_history = ''
 
-#
+# mapeia o valor 'value' do intervalo 'in' para o intervalo 'out'
 def map(value, in_min, in_max, out_min, out_max):
     return round(((value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min))
 
@@ -41,10 +41,10 @@ if __name__ == "__main__":
 
     stop=False
 
+    #
     pub = mqtt.Client('controle')
     pub.connect(BROKER, port=1883)
 
-    #try:
     while True:
         rec = ser.readline().rstrip()
 
@@ -58,15 +58,18 @@ if __name__ == "__main__":
         if rec != '': # rec -> 'x,y'
             x = int(rec.split(',')[0])
             y = int(rec.split(',')[1])
-            # calcula os valores base para os motores
+            # calcula os valores para os motores
+            # virar para direita (reto = 0)
             if (x >= 0):
                 left = y
-                right = y - map(x, 0, 128, 0, y)
+                right = y - map(x, 0, 127, 0, y)
+            # virar para esquerda
             else:
-                left = y + map(x, 0, 128, 0, y)
+                left = y + map(x, 0, 127, 0, y)
                 right = y
 
-            output = str(left) + ',' + str(right)
+            # string para envio
+            output = 'm,' + str(left) + ',' + str(right)
 
             # envia para o broker mqtt
             if output != output_history:
