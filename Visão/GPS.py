@@ -87,7 +87,7 @@ class GPS():
         x1 = int(width / 2)
         y1 = height
         x2 = int(x1 - height / 2 / math.tan(steering_angle_radian))
-        y2 = int(height / 1.5)
+        y2 = int(height / 2)
 
         cv2.line(heading_image, (x1, y1), (x2, y2), line_color, line_width)
         heading_image = cv2.addWeighted(frame, 0.8, heading_image, 1, 1)

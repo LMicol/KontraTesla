@@ -32,10 +32,11 @@ class Car():
     def SendCommand(self):
         print("mandando:", self.turnCommand)
 
+
     def Turn(self):
 
         anguloReto = 90
-        maxVelocidade = 127
+        maxVelocidade = 50
 
         angulo = self.current_angle
         diferencaAngulos = abs(anguloReto - angulo)  #diferença entre os angulos, o quanto tem que mover  abs=módulo

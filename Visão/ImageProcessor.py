@@ -33,8 +33,8 @@ class ImageProcessor():
 
         # TESTAR
         #filtra luz
-        lower_color_bound = np.array([30, 40, 0])
-        upper_color_bound = np.array([120, 255, 255])
+        lower_color_bound = np.array([60, 40, 0])
+        upper_color_bound = np.array([150, 255, 255])
         self.mask = cv2.inRange(hsv, lower_color_bound, upper_color_bound)
 
         # detecta as bordas
@@ -50,8 +50,8 @@ class ImageProcessor():
         # TESTAR
         # Corta metade da imagem
         polygon = np.array([[
-            (0, height * 2 / 3),
-            (width, height * 2 / 3),
+            (0, height * 1 / 2),
+            (width, height * 1 / 2),
             (width, height),
             (0, height),
         ]], np.int32)
@@ -64,9 +64,9 @@ class ImageProcessor():
     def detect_line_segments(self, cropped_edges):
 
         # TESTAR
-        precision = 1  # precisão de 1 pixel
+        precision = 2  # precisão de 1 pixel
         angle = np.pi / 180  # 1 grau em radiano
-        min_threshold = 10  # Minimo de votos para reconhecer como reta
+        min_threshold = 20  # Minimo de votos para reconhecer como reta
         line_segments = cv2.HoughLinesP(cropped_edges, precision, angle, min_threshold, np.array([]), minLineLength=8,
                                         maxLineGap=4)
 
