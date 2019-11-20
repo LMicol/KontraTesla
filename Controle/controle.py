@@ -14,8 +14,8 @@ def map(value, in_min, in_max, out_min, out_max):
     return round(((value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min))
 
 #
-DEVICE='/dev/ttyUSB1'
-SPEED=9600
+DEVICE='/dev/ttyUSB0'
+SPEED=115200
 BROKER='10.1.1.110'
 
 #
@@ -28,7 +28,11 @@ def open_serial(dev, speed, show_info=False):
         print ('Settings:\n %s ' % (ser))
     return ser
 
-
+def arruma_re(val):
+    if (val<0):
+        return map(val,-1,-127,128,255)
+    else:
+        return val
 #
 if __name__ == "__main__":
     if len(sys.argv) == 2:
@@ -45,6 +49,7 @@ if __name__ == "__main__":
     pub.connect(BROKER, port=1883)
 
     #try:
+    counts=0
     while True:
         rec = ser.readline().rstrip()
 
@@ -63,16 +68,25 @@ if __name__ == "__main__":
                 left = y
                 right = y - map(x, 0, 128, 0, y)
             else:
-                left = y + map(x, 0, 128, 0, y)
+                left = y + map(x, 0, 128, 0, y)	
                 right = y
+
+            left=arruma_re(left)
+            right=arruma_re(right)
 
             output = str(left) + ',' + str(right)
 
             # envia para o broker mqtt
             if output != output_history:
-                pub.publish('/c0/eng', output)
+                pub.publish('/c0/eng', "m,"+output)
                 print(output)
                 output_history = output
+                counts = 0
+            if left == 0 and right == 0 and counts < 10:
+                pub.publish('/c0/eng', "s")
+                print('s')
+                counts+=1
+                
 
         if stop:
             break
