@@ -1,4 +1,12 @@
-// Measure Angle with a MPU-6050(GY-521) Written by Ahmet Burkay KIRNIK
+/**
+ *
+ * Código para leitura de valores recebidos dos dispositivos configurados para controle do veículo (Joystick e volante utilizando giroscópio/acelerômetro)
+ *
+ * Os valores são tratados e enviados para a serial, onde o código 'controle.py' obtém esses valores e os manipula para o envio via MQTT
+ *
+ * Measure Angle with a MPU-6050(GY-521) Written by Ahmet Burkay KIRNIK
+ *
+ */
 
 /* Volante */
 
@@ -16,11 +24,11 @@ double z;
 
 /**/
 
-bool controller = false;          // true = volante; false = joystick
+// Guarda qual dispositivo está controlando o veículo, no momento (true = volante; false = joystick)
+bool controller = false;
 
 /* Joystick */
 
-// Variaveis do Joystick
 int outputValueX = 0;
 int outputValueY = 0;
 int buttonState = 0;
@@ -34,13 +42,13 @@ const int digitalJoystick = 2;    // D2
 void setup() {
   /* Joystick */
   pinMode(buttonState, INPUT);
-  /**/
   /* Volante */
   Wire.begin();
   Wire.beginTransmission(MPU_addr);
   Wire.write(0x6B);
   Wire.write(0);
   Wire.endTransmission(true);
+  /**/
   Serial.begin(9600);
 }
 
@@ -52,6 +60,7 @@ void loop() {
     while (!digitalRead(digitalJoystick)) {} // enquanto não soltar o botão, trava a leitura, pois a troca não foi efetuada
     delay(50);
   }
+
   // Usa o volante como dispositivo controlador
   if (controller) {
     Wire.beginTransmission(MPU_addr);
@@ -111,6 +120,7 @@ void loop() {
         z = 0;
       }
     }
+
 /*
     if (y >= 45 && y <= 135) {
       Serial.print(z);
@@ -132,6 +142,7 @@ void loop() {
     }
     int yc = map(y, 0, 180, 127, -128);
 
+    // eliminar o erro
     if(xc < 4 && xc > -4){
       xc = 0;
     }
@@ -143,6 +154,7 @@ void loop() {
     Serial.print(",");
     Serial.println(yc);
   }
+
   // Usa o joystick como dispositivo controlador
   else {
     outputValueX = analogRead(analogInPinX);

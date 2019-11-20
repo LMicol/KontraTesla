@@ -12,15 +12,15 @@ def map(value, in_min, in_max, out_min, out_max):
 
 try:
     while(True):
-        print("Digite o x (-128, 128): ")
+        print("Digite o x (-128, 127): ")
         x = int(input())
-        print("Digite o y (-128, 128): ")
+        print("Digite o y (-128, 127): ")
         y = int(input())
         if (x >= 0):
             left = y
-            right = y - map(x, 0, 128, 0, y)
+            right = y - map(x, 0, 127, 0, y)
         else:
-            left = y + map(x, 0, 128, 0, y)
+            left = y + map(x, 0, 127, 0, y)
             right = y
         print("L=", left)
         print("R=", right, "\n")
