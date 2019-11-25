@@ -15,7 +15,7 @@ def map(value, in_min, in_max, out_min, out_max):
 
 #
 DEVICE='/dev/ttyUSB0'
-SPEED=115200
+SPEED=9600
 BROKER='10.1.1.110'
 
 #
@@ -28,6 +28,7 @@ def open_serial(dev, speed, show_info=False):
         print ('Settings:\n %s ' % (ser))
     return ser
 
+# mapeamento para ré: [-1,127] -> [128,255]
 def arruma_re(val):
     if (val<0):
         return map(val,-1,-127,128,255)
@@ -49,16 +50,14 @@ if __name__ == "__main__":
     pub = mqtt.Client('controle')
     pub.connect(BROKER, port=1883)
 
-    #try:
     counts=0
     while True:
         rec = ser.readline().rstrip()
 
         try:
             rec = str(rec, 'utf-8')
-            # print(rec)
         except:
-            print('Trying again')
+            print('Trying again.')
             rec = ''
 
         if rec != '': # rec -> 'x,y'
@@ -74,29 +73,29 @@ if __name__ == "__main__":
                 left = y + map(x, 0, 128, 0, y)	
                 right = y
 
+	    # mapeia valores para ré, se necessário
             left=arruma_re(left)
             right=arruma_re(right)
 
-            output = str(left) + ',' + str(right)
+	    # prepara saída (roda direita, depois roda esquerda)
+            output = 'm,' + str(right) + ',' + str(left)
 
             # envia para o broker mqtt
             if output != output_history:
-                pub.publish('/c0/eng', "m,"+output)
+                pub.publish('/c0/eng', output)
                 print(output)
                 output_history = output
                 counts = 0
+
+	    # se valores estão zerados, manda parar
             if left == 0 and right == 0 and counts < 10:
                 pub.publish('/c0/eng', "s")
                 print('s')
                 counts+=1
                 
-
         if stop:
             break
 
-    #except:
-    print("Except:")
-    #print(e)
     stop = True
     ser.close()
-    #pub.disconnect()
+    pub.disconnect()
