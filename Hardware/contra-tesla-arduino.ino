@@ -44,7 +44,11 @@
 // t                       : retorna a temperatura
 // t,temperatura
 // s                       : para os motores
-// 
+// d                       : desabilita
+// d,desabilitaIR,desabilitaSOM
+//                             onde:
+//                             0 ativada
+//                             1 desativada
 // Esquema de ligação:
 // Ligação detalhada em contra-tesla.fzz
 // 
@@ -76,15 +80,18 @@
 //  - Temperatura é enviada regularmente.
 // 
 // Material utilizado:
-//  - 1 Arduino UNO R3
-//  - 1 Ponte H
-//  - 1 Módulo HCSR04
+//  - 1 arduino UNO R3
+//  - 1 ponte H L298N
+//  - 1 módulo HCSR04
 //  - 4 baterias 18650
 //  - 2 suportes para baterias 18650
-//  - 2 Servo motores
+//  - 2 servo motores
 //  - 3 IR
-//  - 1 temp
-//  - 
+//  - 1 módulo sensor de temperatura
+//  - 1 sensor shield
+//  - 1 Interruptor
+//  - 1 conversor DC-DC Stepdown
+//  - 1 chassis com 4 motores
 
 
 // Bibliotecas utilizadas
@@ -101,15 +108,15 @@
 // Desabilita a parada do carro quando sensores IR detectarem colisão
 // 0 ativada
 // 1 desativada
-// Ativada por default
-const int DESABILITA_PARADA_IR_COLISAO = 0;
+// Desativada por default
+int DESABILITA_PARADA_IR_COLISAO = 1;
 
 // Desabilita a parada do carro quando distancia do ultrasonico for menor que
 // Desativada por default
 // 0 ativada
 // 1 desativada
-const int DESABILITA_PARADA_ULTRASONICO_COLISAO = 1;
-const int DISTANCIA_PARADA_ULTRASONICO_COLISAO  = 4;
+int DESABILITA_PARADA_ULTRASONICO_COLISAO = 1;
+int DISTANCIA_PARADA_ULTRASONICO_COLISAO  = 4;
 
 // Porta sensor de temperatura
 #define TEMP 6
@@ -134,6 +141,7 @@ const int DISTANCIA_PARADA_ULTRASONICO_COLISAO  = 4;
 L298N motorEsq(ENA,IN1,IN2);
 L298N motorDir(ENB,IN3,IN4);
 
+// Define valores para velocidades horário e antihorario
 #define VEL_MIN_HORA 0
 #define VEL_MAX_HORA 127
 #define VEL_MIN_ANTI 128
@@ -146,13 +154,14 @@ L298N motorDir(ENB,IN3,IN4);
 #define SERVO_HOR A0
 #define SERVO_VER A1
 
-// Instância servos horizontal e vertical, respectivamente
+// Instância servos horizontal e vertical
 Servo servoHor;
 Servo servoVer;
 
-// Variáveis para a MPU6050
 // Endereco I2C do MPU6050
 const int mpui2cAddress=0x68;
+
+// Variáveis para a MPU6050
 int16_t acelerometroX,acelerometroY,acelerometroZ;
 int16_t giroscopioX,giroscopioY,giroscopioZ;
 int16_t temperatureMpu;
@@ -172,18 +181,20 @@ const char* delimiter = ",";
 char* tokens[MAX_TOKENS + 1];
 enum indexName {id,value1,value2};
 
+// Id dos comandos
 const char idTemperature = 't';
 const char idIr = 'i';
 const char idUltrasonic = 'u';
 const char idMotors = 'm';
 const char idServo = 'v';
 const char idMpu = 'a';
-const char isStop = 's';
+const char idStop = 's';
+const char idDesir = 'd';
 
 // Variáveis para os dados dos sensores infrared
 int ir_esqState = 1;
 int ir_dirState = 1;
-int ir_traState = 1;
+int ir_traState = 0;
 
 // Para o sensor ultrasonico
 Ultrasonic ultrasonic(ULTRA_TRIG,ULTRA_ECHO);
@@ -195,6 +206,9 @@ float temperatureSensor = 0;
 // Intervalo para imprimir na serial a temperatura
 long previousMillis = 0;
 long interval = 1000;
+
+long previousMillisMpu = 0;
+long intervalMpu = 200;
 
 void setup()
 {
@@ -235,7 +249,7 @@ void ir()
     {
         ir_traState = 0;
     }
-    else if(ir_traState == 0)
+    else
     {
         ir_traState = 1;
     }
@@ -245,9 +259,6 @@ void ir()
 // Saída: idIr,esquerdo,direito,traseiro
 void ir_print()
 {
-    // Lê os sensores
-    ir();
-
     // Imprime na serial
     Serial.print(idIr);
     Serial.print(delimiter);
@@ -282,9 +293,6 @@ void ultra()
 // Saída: idUltrasonic,distancia
 void ultra_print()
 {
-    // Lê o sensor
-    ultra();
-
     // Imprime na serial
     Serial.print(idUltrasonic);
     Serial.print(delimiter);
@@ -341,33 +349,36 @@ void loop()
     // Obtem os dados dos sensores de colisao SEM imprimir na serial
     ir();
 
+    // Obtem distancia com o ultrasônico SEM imprimir na serial
+    ultra();
+
     // Se colisao for detectada, para os motores e imprime na serial os dados dos sensores.
-    if((ir_esqState == 0 || ir_dirState == 0 || ir_traState == 0) && (DESABILITA_PARADA_IR_COLISAO == 0))
+    if((DESABILITA_PARADA_IR_COLISAO == 0) && (ir_esqState == 0 || ir_dirState == 0 || ir_traState == 0))
     {
         stopMotors();
         ir_print();
     }
 
-    // Obtem distancia com o ultrasônico SEM imprimir na serial
-    ultra();
-
     // Se perto demais, para os motores e imprime na serial.
-    if((distance < DISTANCIA_PARADA_ULTRASONICO_COLISAO) && (DESABILITA_PARADA_ULTRASONICO_COLISAO == 0))
+    if((DESABILITA_PARADA_ULTRASONICO_COLISAO == 0) && (distance < DISTANCIA_PARADA_ULTRASONICO_COLISAO))
     {
         stopMotors();
         ultra_print();
     }
 
-    // Imprime na serial os dados do acelerometro e do giroscopio, freneticamente :)
-    mpu6050();
-
     unsigned long currentMillis = millis();
+
+    // Imprime na serial os dados do acelerometro e do giroscopio :)
+    if(currentMillis - previousMillisMpu > intervalMPU)
+    {
+        previousMillisMpu = currentMillis;
+        mpu6050();
+    }
 
     // Imprime na serial a temperatura a cada 'interval'
     if(currentMillis - previousMillis > interval)
     {
         previousMillis = currentMillis;
-
         temperatura();
     }
 
@@ -392,8 +403,6 @@ void loop()
         if(*tokens[id] == idMotors)
         {
             // Tarefa: nao repetir codigo, preparar para motores independetes utilizando mais pontes h.
-            stopMotors();
-
             // Motores esquerdos rodam no sentido antihorario
             // Senão, no sentido horario
             if(val1 <= VEL_MAX_HORA)
@@ -401,10 +410,8 @@ void loop()
                 // Mapeamento para [MAP_MIN,MAP_MAX]
                 int val11map = map(val1,VEL_MIN_HORA,VEL_MAX_HORA,MAP_MIN,MAP_MAX);
 
-                // Configura a velocidade
+                // Seta a velocidade e move para frente
                 motorEsq.setSpeed(val11map);
-
-                // Move para frente
                 motorEsq.backward();
             }
             else
@@ -412,10 +419,8 @@ void loop()
                 // Mapeamento para [MAP_MIN,MAP_MAX]
                 int val12map = map(val1,VEL_MIN_ANTI,VEL_MAX_ANTI,MAP_MIN,MAP_MAX);
 
-                // Configura a velocidade
+                // Seta a velocidade e move para trás
                 motorEsq.setSpeed(val12map);
-
-                // Move para trás
                 motorEsq.forward();
             }
 
@@ -444,7 +449,7 @@ void loop()
             // Retorna os dados do acelerometro e giroscopio
             mpu6050();
         }
-        else if(*tokens[id] == isStop)
+        else if(*tokens[id] == idStop)
         {
             // Para os motores
             stopMotors();
@@ -463,6 +468,12 @@ void loop()
         {
             // Retorna a temperatura
             temperatura();
+        }
+        else if(*tokens[id] == idDesir)
+        {
+            // Seta variaveis de colisão
+            DESABILITA_PARADA_IR_COLISAO = val1;
+            DESABILITA_PARADA_ULTRASONICO_COLISAO = val2;
         }
 
         // Limpa string
